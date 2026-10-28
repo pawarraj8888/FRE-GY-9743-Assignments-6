@@ -1,12 +1,13 @@
 \documentclass[10pt]{article}
-\usepackage[margin=0.75in,top=0.6in,bottom=0.6in]{geometry}
+\usepackage[margin=0.7in,top=0.55in,bottom=0.55in]{geometry}
 \usepackage{amsmath,amssymb,booktabs,microtype,xcolor,url}
 \usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,pdftitle={FRE-GY-9743 Assignment 6},pdfauthor={Raj Pawar}]{hyperref}
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\E}{\mathbb{E}}
 \newcommand{\df}[1]{\mathrm{df}_{#1}}
 \newcommand{\usd}{\mathrm{USD}}\newcommand{\eur}{\mathrm{EUR}}\newcommand{\gbp}{\mathrm{GBP}}
-\setlength{\parindent}{0pt}\setlength{\parskip}{4pt}\emergencystretch=3em\pagestyle{empty}
+\setlength{\parindent}{0pt}\setlength{\parskip}{3pt}\emergencystretch=3em\pagestyle{empty}
+\makeatletter\g@addto@macro\normalsize{\setlength{\abovedisplayskip}{5pt}\setlength{\belowdisplayskip}{5pt}\setlength{\abovedisplayshortskip}{3pt}\setlength{\belowdisplayshortskip}{3pt}}\makeatother
 \makeatletter\renewcommand{\section}{\@startsection{section}{1}{\z@}{8pt plus 2pt}{3pt}{\normalfont\large\bfseries}}\makeatother
 \begin{document}
 {\Large\bfseries FRE-GY-9743 Assignment 6: A GBP-Collateralised EUR/USD Forward, and Swap Products}\\[1pt]
@@ -19,23 +20,24 @@ Project page: \href{https://pawarraj8888.github.io/FRE-GY-9743-Assignments-6/}{p
 \textbf{Setting.} At $T$ I receive $N$ EUR and pay $NK$ USD, so $K$ is in USD per EUR, like the spot rate $X_t$. The trade
 sits under a CSA with cash collateral in GBP, remunerated at SONIA, and I assume perfect collateralisation as in the notes.
 I write $c_{\usd}$, $c_{\eur}$, $c_{\gbp}$ for the collateral (OIS) rates SOFR, EuroSTR and SONIA, $r_{\usd}, r_{\eur},
-r_{\gbp}$ for the rates at which a desk actually funds and invests cash in each currency (the secured rate $r_R$ of the notes),
-and $y_i := r_i - c_i$ for the gap between the two in currency $i$. The $y_i$ are small and not directly observable; they will only
-ever appear as differences, which is what the cross-currency basis market quotes.
+r_{\gbp}$ for the rate at which a desk borrows and invests cash in each currency (one rate per currency, which collapses the
+notes' $r_R$ and $r_F$; the gap between those two is the FVA question and I leave it aside), and $y_i := r_i - c_i$ for the gap
+between the cash rate and the collateral rate in currency $i$. The $y_i$ are small and not directly observable; they only ever
+appear as differences, which is what the cross-currency basis market quotes.
 
 \textbf{Discounting a payoff whose collateral is in another currency.} I redo the replication argument of the collateral notes
 (Section 2.2) for a USD payoff $V$ collateralised in GBP. The counterparty posts collateral worth $V$, i.e. $C_{\gbp}=V/X^{\mathrm{GBPUSD}}_t$
-pounds. I pay SONIA on it, $c_{\gbp}C_{\gbp}$, and I can lend the pounds, or repay GBP borrowing with them, at $r_{\gbp}$,
-so the collateral account earns me a net carry of $(r_{\gbp}-c_{\gbp})C_{\gbp}$ per unit time, which is $y_{\gbp}V$ in USD once
-I convert at spot. The derivative itself needs no unsecured funding because it is fully collateralised, and the hedge is financed at the
-secured rate exactly as in Eq.~(12) of the notes with $C\equiv V$. The self-financing condition therefore becomes
+pounds, on which I pay SONIA, $c_{\gbp}C_{\gbp}$. I keep the pounds in GBP and invest them at $r_{\gbp}$ (converting them would leave
+me short pounds against a liability that is marked in pounds), so the collateral account nets me $(r_{\gbp}-c_{\gbp})C_{\gbp}$ per unit
+time, which is $y_{\gbp}V$ in dollars at spot. The derivative itself I fund by borrowing $V$ dollars at $r_{\usd}$, and the hedge is
+financed at the secured rate exactly as in Eq.~(12) of the notes. Collecting the carry terms, the self-financing condition becomes
 $\partial_tV+\mathcal{L}V = r_{\usd}V - y_{\gbp}V$, and Feynman--Kac gives
 \[
 V_t=\E^{Q_{\usd}}_t\!\Bigl[e^{-\int_t^T (r_{\usd}-y_{\gbp})\,du}\,V_T\Bigr]
    =\E^{Q_{\usd}}_t\!\Bigl[e^{-\int_t^T (c_{\usd}+y_{\usd}-y_{\gbp})\,du}\,V_T\Bigr].
 \]
-Two checks: with GBP collateral on a GBP payoff the rate is $r_{\gbp}-y_{\gbp}=c_{\gbp}$, SONIA discounting, which is Eq.~(16)
-of the notes; with USD collateral on a USD payoff it is SOFR. So the general rule is: a payoff in currency $i$ collateralised in
+Two checks: with GBP collateral on a GBP payoff the pounds repay the borrowing directly, the round trip disappears and the rate is
+$r_{\gbp}-y_{\gbp}=c_{\gbp}$, SONIA discounting, which is Eq.~(16) of the notes; with USD collateral on a USD payoff it is SOFR. So the general rule is: a payoff in currency $i$ collateralised in
 currency $k$ is discounted at $c_i+y_i-y_k$, and I write the corresponding collateralised zero-coupon bond as
 \[
 P^{(k)}_i(t,T):=\E^{Q_i}_t\!\Bigl[e^{-\int_t^T (c_i+y_i-y_k)\,du}\Bigr],\qquad P^{(i)}_i(t,T)=\E^{Q_i}_t\!\Bigl[e^{-\int_t^T c_i\,du}\Bigr]
@@ -92,8 +94,8 @@ triangulated from the two USD bases. Three caveats I would attach to that answer
 assumption; if the bases are stochastic and correlated with FX, each $P^{(k)}_i$ carries a convexity term that the five curves do not
 determine. The triangulated EUR/GBP basis is a no-arbitrage value; where EUR/GBP basis swaps trade at a different level, a
 GBP-collateralised EUR curve bootstrapped from them should replace the triangulation, and the formula above becomes the check against it.
-And the $y$'s are desk-specific if the collateral can actually be invested at something other than the market secured rate, which is
-the cheapest-to-deliver collateral question rather than a curve question.
+And if a desk can invest collateral at something other than the market cash rate, the $y$'s become desk-specific: that is the
+cheapest-to-deliver collateral question, not a curve question.
 
 \section*{Part II: swap products in the valuation library}
 I completed the six \code{TODO} blocks following the supplied FRA example. In \code{linear\_products.py}, \code{ProductRFRSwap} builds a
@@ -106,34 +108,30 @@ index-only and spread-only views of leg 1 reuse the leg-1 schedule, so leg 1 val
 the two builders read everything but the dates and the quote from the convention; the shared date rule treats \code{1Y} as spot-starting,
 \code{3Mx1Y} as a 3M forward start running for 1Y, and accepts explicit dates in either slot; the quote is the fixed rate for the
 swap and the leg-1 spread for the basis swap. In \code{valuation\_engine.py} the two \code{calculate\_value} methods are signed sums of
-the supplied leg engines, for value and for cash separately.
+the supplied leg engines' values and of their cash.
 
 \textbf{Numbers.} Value date 2026-01-02, notional $N=1,000,000$ USD, trades from 2026-04-02 to 2027-04-02, funding on SOFR plus the
 IFR spread. A useful identity for checking the floating legs by hand: when every observation period of the index calendar lies inside
 the coupon, the daily factors $D(s_j)/D(e_j)$ telescope, so a compounded coupon pays $N\bigl(D(T_s)/D(T_e)-1\bigr)$ on the projection curve
-plus $N\alpha s$ for the spread, discounted with the funding curve at the payment date. For the annual SOFR coupon this gives a
-compounded rate of 4.2730\%, the figure in the notebook's cashflow table.
-\begin{center}\small
-\begin{tabular}{@{}lrrr@{}}\toprule
+plus $N\alpha s$ for the spread, discounted with the funding curve at the payment date. For the annual SOFR coupon this gives 4.2730\%, as in the notebook's cashflow table.
+\vspace{2pt}{\centering\small
+\begin{tabular}{@{}p{5.1cm}p{7.3cm}rl@{}}\toprule
 Product & Leg values (USD) & PV (USD) & Fair level \\\midrule
-FRA $3\times6$, receive 4\% & & 87.09 & \\
+FRA $3\times6$, receive 4\% (the supplied example) & fixed 9,937.00, floating 9,849.91 & 87.09 & \\
 RFR swap, receive 4\% vs SOFR, 1Y/1Y & fixed 38,534.54, floating 41,164.22 & -2,629.68 & par rate 4.2730\% \\
-Basis swap, receive SOFR + 10 bp vs Fed Funds, 3M/3M & leg 1 42,163.00 (index 41,182.75 + spread 980.25), leg 2 33,716.53 & 8,446.47 & fair spread -76.17 bp \\
-\bottomrule\end{tabular}
-\end{center}
-\begin{center}\small
+Basis swap, SOFR + 10 bp vs Fed Funds, 3M/3M & leg 1 42,163.00 (index 41,182.75, spread 980.25), leg 2 33,716.53 & 8,446.47 & fair spread -76.17 bp \\
+\bottomrule\end{tabular}\par}
+\vspace{4pt}{\centering\small
 \begin{tabular}{@{}lllrrrrrr@{}}\toprule
 Start & End & Pays & $\alpha$ & SOFR cmpd \% & FF cmpd \% & $D_{\mathrm{fund}}$ & Leg 1 PV & Leg 2 PV \\\midrule
 2026-04-02 & 2026-07-02 & 2026-07-07 & 0.252778 & 3.9649 & 2.7713 & 0.982228 & 10,092.66 & 6,880.75 \\
 2026-07-02 & 2026-10-02 & 2026-10-06 & 0.255556 & 3.9652 & 3.6664 & 0.972239 & 10,100.34 & 9,109.54 \\
 2026-10-02 & 2027-01-04 & 2027-01-06 & 0.261111 & 3.9656 & 3.6668 & 0.962191 & 10,214.35 & 9,212.31 \\
 2027-01-04 & 2027-04-02 & 2027-04-06 & 0.244444 & 4.9614 & 3.6656 & 0.950167 & 11,755.64 & 8,513.93 \\
-\bottomrule\end{tabular}
-\end{center}
-The swap is worth less than zero to the fixed receiver because 4\% is below the 4.27\% the SOFR curve compounds to, and the basis swap
-is worth 8,446.47 because Fed Funds projects some 1 to 1.3 percentage points below SOFR on these synthetic curves, far more than the
-10 bp spread paid for it. Every number in the notebook agrees with the hand calculation described above, which is also what the
-41 tests in \code{tests/} check (leg construction, calendars and periods, the factory's date rules and convention mapping, the
-engines against the hand numbers, par rate and fair spread, arithmetic compounding, same-day cash from fixings, past payments, reports and
-registry dispatch, and the supplied FRA).
+\bottomrule\end{tabular}\par}
+\vspace{3pt}
+The swap is negative for the fixed receiver because 4\% is below the 4.27\% that SOFR compounds to; the basis swap is worth 8,446.47
+because Fed Funds projects 1 to 1.3 points below SOFR on these synthetic curves, far more than the 10 bp spread. Every number in the notebook agrees with the hand calculation above, and the 41 tests in
+\code{tests/} check the same things: leg construction and dates, the factory's rules, the engines against the hand numbers, par rate
+and fair spread, arithmetic compounding, same-day cash from fixings and past payments, the reports and the registry.
 \end{document}

@@ -113,7 +113,7 @@ the supplied leg engines' values and of their cash.
 \textbf{Numbers.} Value date 2026-01-02, notional $N=1,000,000$ USD, trades from 2026-04-02 to 2027-04-02, funding on SOFR plus the
 IFR spread. A useful identity for checking the floating legs by hand: when every observation period of the index calendar lies inside
 the coupon, the daily factors $D(s_j)/D(e_j)$ telescope, so a compounded coupon pays $N\bigl(D(T_s)/D(T_e)-1\bigr)$ on the projection curve
-plus $N\alpha s$ for the spread, discounted with the funding curve at the payment date. For the annual SOFR coupon this gives 4.2730\%, as in the notebook's cashflow table.
+plus $N\alpha s$ for the spread, discounted with the funding curve at the payment date. For the annual SOFR coupon this gives 4.2730\%, as in the notebook's cashflow table.\par
 \vspace{2pt}{\centering\small
 \begin{tabular}{@{}p{5.1cm}p{7.3cm}rl@{}}\toprule
 Product & Leg values (USD) & PV (USD) & Fair level \\\midrule

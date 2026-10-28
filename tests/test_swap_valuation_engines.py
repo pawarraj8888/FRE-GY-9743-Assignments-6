@@ -5,7 +5,8 @@
     python -m pytest tests -q                      # with pytest
 
 The model and the trades are the ones in hw6_interest_rate_products.ipynb. The reference numbers are
-worked out here without the library: discount factors from the piecewise-constant forward rates
+worked out here without the library (QuantLib is used only for the business-day calendars): discount factors
+from the piecewise-constant forward rates
 (D = exp(-integral f), each node's rate applying on the bucket that ends at the node), ACT/360 accruals
 from day counts, and the compounded overnight rate from the projection curve. Daily compounding of
 projected overnight rates telescopes, (prod_j D(s_j)/D(e_j)) - 1 = D(T_s)/D(T_e) - 1, because every
@@ -125,8 +126,40 @@ def overnight_leg_pv(schedule, df, spread=0.0, notional=NOTIONAL):
 
 def business_day_intervals(start, end, calendar):
     """Consecutive business-day observation periods covering [start, end], as ISO strings."""
-    dates = [d.ISO() for d in calendar.businessDayList(Date(start), Date(end))]
+    dates = [d.ISO() for d in calendar.businessDayList(ql.DateParser.parseISO(start), ql.DateParser.parseISO(end))]
     return list(zip(dates[:-1], dates[1:]))
+
+
+def grown_factor(calendar, start, end, value_date, rate):
+    """Product of 1 + alpha_j * rate over the observation periods of [start, end] fixed before value_date."""
+    factor = 1.0
+    for s, e in business_day_intervals(start, end, calendar):
+        if s < value_date:
+            factor *= 1.0 + act360(s, e) * rate
+    return factor
+
+
+class flat_fixings:
+    """Flat daily fixings for SOFR-1B and FF-1B on every calendar day of [first, last]; restores the singleton on exit."""
+
+    def __init__(self, sofr_rate, ff_rate, first, last):
+        self.rates, self.first, self.last = {"SOFR-1B": sofr_rate, "FF-1B": ff_rate}, first, last
+
+    def __enter__(self):
+        manager = IndexFixingsManager()
+        self.saved = (dict(manager.daily_), dict(manager.term_))
+        day = dt.date.fromisoformat(self.first)
+        while day <= dt.date.fromisoformat(self.last):
+            for index, rate in self.rates.items():
+                manager.insert_fixing(index, Date(day.isoformat()), rate)
+            day += dt.timedelta(days=1)
+        return self
+
+    def __exit__(self, *_):
+        manager = IndexFixingsManager()
+        manager.daily_.clear(); manager.daily_.update(self.saved[0])
+        manager.term_.clear(); manager.term_.update(self.saved[1])
+        return False
 
 
 def engine_for(product, model=None, engine_cls=None):
@@ -209,23 +242,56 @@ def test_arithmetic_compounding_adds_the_daily_interest_instead_of_compounding_i
 
 
 def test_swap_paying_on_the_value_date_is_cash_from_historical_fixings():
-    fixings = IndexFixingsManager()
-    try:
-        calendar = ql.UnitedStates(ql.UnitedStates.SOFR)
-        for start, _ in business_day_intervals("2026-03-27", END_DATE, calendar):
-            fixings.insert_fixing("SOFR-1B", Date(start), 0.041)
+    with flat_fixings(0.041, 0.0, "2026-03-27", "2027-04-05"):
         model = build("2027-04-06", sofr=[("2027-07-06", 0.03), ("2028-01-03", 0.04)],
                       fed_funds=[("2027-07-06", 0.028), ("2028-01-03", 0.037)],
                       spread=[("2027-07-06", 0.0), ("2028-01-03", 0.001)])
         engine = engine_for(make_swap(), model)
-        growth = 1.0
-        for start, end in business_day_intervals(EFFECTIVE_DATE, END_DATE, calendar):
-            growth *= 1.0 + act360(start, end) * 0.041
+        growth = grown_factor(ql.UnitedStates(ql.UnitedStates.SOFR), EFFECTIVE_DATE, END_DATE, "2027-04-06", 0.041)
         expected = NOTIONAL * (FIXED_RATE * act360(EFFECTIVE_DATE, END_DATE) - (growth - 1.0))
         assert abs(engine.value - expected) < TOL
         assert abs(engine.cash - expected) < TOL                 # paid today: cash, not discounted
-    finally:
-        fixings.clear()
+    assert not IndexFixingsManager().exist_fixing("SOFR-1B", Date("2026-06-01"))   # singleton restored
+
+
+def test_mid_life_swaps_separate_todays_coupon_as_cash_from_the_discounted_remainder():
+    """Value date 2026-07-07, the first quarterly payment date: the first coupon of each leg is cash, built from
+    the fixings of the index's own calendar; the second coupon mixes fixings before the value date with the
+    projection curve after it; the last two are projected and discounted. Cash is neither zero nor the value."""
+    value_date = "2026-07-07"
+    sofr_nodes, ff_nodes = [("2027-01-04", 0.04), ("2028-01-03", 0.05)], [("2027-01-04", 0.037), ("2028-01-03", 0.037)]
+    spread_nodes = [("2027-01-04", 0.001), ("2028-01-03", 0.001)]
+    sofr_fixing, ff_fixing = 0.041, 0.038
+    sofr_calendar, ff_calendar = ql.UnitedStates(ql.UnitedStates.SOFR), ql.UnitedStates(ql.UnitedStates.FederalReserve)
+    df_s = lambda d: math.exp(-integral(sofr_nodes, d, value_date))
+    df_f = lambda d: math.exp(-integral(ff_nodes, d, value_date))
+    df_fund = lambda d: df_s(d) * math.exp(-integral(spread_nodes, d, value_date))
+
+    def coupon_rate(df, calendar, fixing, start, end):
+        grown = grown_factor(calendar, start, end, value_date, fixing)
+        return (grown * df(max(start, value_date)) / df(end) - 1.0) / act360(start, end)
+
+    def leg(df, calendar, fixing, spread):
+        """(cash today, discounted value of the later coupons) of a quarterly overnight leg."""
+        first, later = QUARTERLY[0], QUARTERLY[1:]
+        cash = NOTIONAL * act360(first[0], first[1]) * (coupon_rate(df, calendar, fixing, first[0], first[1]) + spread)
+        value = sum(NOTIONAL * act360(s, e) * (coupon_rate(df, calendar, fixing, s, e) + spread) * df_fund(p) for s, e, p in later)
+        return cash, value
+
+    with flat_fixings(sofr_fixing, ff_fixing, "2026-03-20", "2026-07-06"):
+        model = build(value_date, sofr=sofr_nodes, fed_funds=ff_nodes, spread=spread_nodes)
+        sofr_cash, sofr_later = leg(df_s, sofr_calendar, sofr_fixing, BASIS_SPREAD)
+        ff_cash, ff_later = leg(df_f, ff_calendar, ff_fixing, 0.0)
+        basis = engine_for(make_basis_swap(), model)
+        assert abs(basis.cash - (sofr_cash - ff_cash)) < TOL
+        assert abs(basis.value - ((sofr_cash - ff_cash) + (sofr_later - ff_later))) < TOL
+        assert basis.cash != 0.0 and abs(basis.value - basis.cash) > 1.0
+        float_cash, float_later = leg(df_s, sofr_calendar, sofr_fixing, 0.0)
+        fixed_value = NOTIONAL * FIXED_RATE * act360(EFFECTIVE_DATE, END_DATE) * df_fund("2027-04-06")
+        swap = engine_for(make_swap(floating_leg_accrual_period="3M"), model)
+        assert abs(swap.cash - (-float_cash)) < TOL                 # receive fixed: today's floating coupon is paid out
+        assert abs(swap.value - (-float_cash + fixed_value - float_later)) < TOL
+        assert swap.cash != 0.0 and abs(swap.value - swap.cash) > 1.0
 
 
 def test_swap_whose_payments_are_all_in_the_past_is_worthless():

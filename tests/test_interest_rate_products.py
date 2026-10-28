@@ -120,7 +120,7 @@ def test_rfr_swap_spread_and_compounding_method_reach_every_floating_coupon():
     assert swap.spread == 0.0025 and swap.compounding_method == CompoundingMethod.ARITHMETIC
 
 
-def test_rfr_swap_tenor_end_is_rolled_with_the_index_calendar():
+def test_rfr_swap_tenor_end_is_rolled_to_the_next_business_day():
     one_year = make_swap(term_or_termination_date="1Y")
     assert one_year.termination_date.ISO() == "2027-04-02"
     assert dates_of(one_year.fixed_leg) == ANNUAL and dates_of(one_year.floating_leg) == ANNUAL
@@ -188,6 +188,16 @@ def test_basis_swap_each_leg_follows_its_own_index_calendar():
         assert spec["BUSINESS_DAY_CONVENTION"] == "F" and spec["PAYMENT_BUSINESS_DAY_CONVENTION"] == "F"
 
 
+def test_basis_swap_legs_roll_differently_where_their_calendars_differ():
+    # Good Friday 2027-03-26 is a SOFR holiday but a Federal Reserve business day: leg 1 rolls, leg 2 does not
+    swap = make_basis_swap(effective_date="2026-03-26", term_or_termination_date="2027-03-26")
+    leg_1, leg_2 = dates_of(swap.floating_leg_1), dates_of(swap.floating_leg_2)
+    assert leg_1[-1][1:] == ("2027-03-29", "2027-03-31") and leg_2[-1][1:] == ("2027-03-26", "2027-03-30")
+    assert leg_1[0][0] == leg_2[0][0] == "2026-03-26"
+    rfr = make_swap(effective_date="2026-03-26", term_or_termination_date="2027-03-26")
+    assert dates_of(rfr.fixed_leg) == dates_of(rfr.floating_leg) == [("2026-03-26", "2027-03-29", "2027-03-31")]
+
+
 def test_basis_swap_leg_1_splits_into_the_supplied_index_and_spread_streams():
     swap = make_basis_swap()
     index_only, spread_only = swap.floating_leg_1_wo_basis, swap.floating_leg_1_basis
@@ -207,7 +217,7 @@ def test_basis_swap_legs_can_have_different_accrual_periods():
     assert str(swap.accrual_period_leg_1) == "3M" and str(swap.accrual_period_leg_2) == "6M"
 
 
-def test_basis_swap_tenor_end_is_rolled_with_the_leg_1_index_calendar():
+def test_basis_swap_tenor_end_is_rolled_to_the_next_business_day():
     one_year = make_basis_swap(term_or_termination_date="1Y")
     assert one_year.termination_date.ISO() == "2027-04-02"
     assert dates_of(one_year.floating_leg_1) == QUARTERLY and dates_of(one_year.floating_leg_2) == QUARTERLY

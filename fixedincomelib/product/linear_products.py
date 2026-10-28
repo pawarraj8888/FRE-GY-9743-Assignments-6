@@ -531,8 +531,10 @@ class ProductRFRSwap(Product):
 
         # Both legs run from the adjusted effective date to the termination date. Their
         # accrual schedules follow the overnight index's fixing calendar with the swap's
-        # payment business-day convention, and both pay with the swap's payment offset and
-        # payment conventions. The fixed leg pays N*K*alpha per period; the floating leg
+        # payment business-day convention (the same choice the template makes for the
+        # fixed-rate spread stream of the basis swap below, so both legs share accrual
+        # dates), and both pay with the swap's payment offset and payment conventions.
+        # The fixed leg pays N*K*alpha per period; the floating leg
         # compounds the overnight fixings over each period and adds the spread outside the
         # compounding, which is how ProductOvernightIndexCashflow stores it.
         schedule_holidays = HolidayConvention(self.on_index_.fixingCalendar().name())

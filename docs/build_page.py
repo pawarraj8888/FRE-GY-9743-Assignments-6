@@ -9,12 +9,13 @@ sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "tests")); os.chdir
 from test_swap_valuation_engines import (ANNUAL, BASIS_SPREAD, FIXED_RATE, FF_IFR, NOTIONAL, QUARTERLY, SOFR_IFR,  # noqa: E402
                                          SPREAD_IFR, VALUE_DATE, act360, build, compounded_rate, df_ff, df_funding,
                                          df_sofr, engine_for, make_basis_swap, make_swap, overnight_leg_pv, parameters, years)
-from fixedincomelib import qfCreateProductFRA, qfCreateValueReport  # noqa: E402
+from fixedincomelib import qfCreateProductFRA  # noqa: E402
 
 model = build()
 swap_engine, basis_engine = engine_for(make_swap(), model), engine_for(make_basis_swap(), model)
-fra_pv = qfCreateValueReport(model, qfCreateProductFRA("2026-04-02", "2026-07-02", "SOFR-1B", FIXED_RATE, "receive", NOTIONAL,
-                                                       accrual_basis="ACT/360"), parameters(), "PV")[0][1]
+fra_engine = engine_for(qfCreateProductFRA("2026-04-02", "2026-07-02", "SOFR-1B", FIXED_RATE, "receive", NOTIONAL,
+                                           accrual_basis="ACT/360"), model)
+fra_pv = fra_engine.value
 swap_rows = swap_engine.create_cash_flows_report().content
 basis_rows = basis_engine.create_cash_flows_report().content
 annuity_fixed = sum(NOTIONAL * act360(s, e) * df_funding(p) for s, e, p in ANNUAL)
@@ -66,7 +67,7 @@ hand_headers = ["Coupon", "alpha (ACT/360)", "SOFR compounded", "Fed Funds compo
 hand_rows = [[f"{s} to {e}", f"{act360(s, e):.6f}", f"{compounded_rate(df_sofr, s, e):.6f}", f"{compounded_rate(df_ff, s, e):.6f}", f"{df_funding(p):.6f}",
               money(NOTIONAL * act360(s, e) * (compounded_rate(df_sofr, s, e) + BASIS_SPREAD) * df_funding(p)),
               money(NOTIONAL * act360(s, e) * compounded_rate(df_ff, s, e) * df_funding(p))] for s, e, p in QUARTERLY]
-summary = [["FRA 3x6, receive 4% (supplied example)", "", money(fra_pv), ""],
+summary = [["FRA 3x6, receive 4% (supplied example)", f"fixed {money(fra_engine.fixed_leg_engine_.value)}, floating {money(fra_engine.floating_leg_engine_.value)}", money(fra_pv), ""],
            ["RFR swap, receive 4% vs compounded SOFR, 1Y/1Y", f"fixed {money(swap_engine.fixed_leg_engine_.value)}, floating {money(swap_engine.floating_leg_engine_.value)}",
             money(swap_engine.value), f"par rate {par_rate*100:.4f}%"],
            ["Basis swap, receive SOFR + 10 bp vs Fed Funds, 3M/3M",

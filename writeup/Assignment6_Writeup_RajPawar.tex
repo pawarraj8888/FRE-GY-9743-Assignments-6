@@ -1,0 +1,139 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.75in,top=0.6in,bottom=0.6in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,microtype,xcolor,url}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,pdftitle={FRE-GY-9743 Assignment 6},pdfauthor={Raj Pawar}]{hyperref}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\df}[1]{\mathrm{df}_{#1}}
+\newcommand{\usd}{\mathrm{USD}}\newcommand{\eur}{\mathrm{EUR}}\newcommand{\gbp}{\mathrm{GBP}}
+\setlength{\parindent}{0pt}\setlength{\parskip}{4pt}\emergencystretch=3em\pagestyle{empty}
+\makeatletter\renewcommand{\section}{\@startsection{section}{1}{\z@}{8pt plus 2pt}{3pt}{\normalfont\large\bfseries}}\makeatother
+\begin{document}
+{\Large\bfseries FRE-GY-9743 Assignment 6: A GBP-Collateralised EUR/USD Forward, and Swap Products}\\[1pt]
+Raj Pawar, NYU Tandon School of Engineering, October 28, 2026.\\
+Code: \href{https://github.com/pawarraj8888/FRE-GY-9743-Assignments-6/tree/Raj_Pawar_Branch}{github.com/pawarraj8888/FRE-GY-9743-Assignments-6}, branch \code{Raj\_Pawar\_Branch}.\\
+Project page: \href{https://pawarraj8888.github.io/FRE-GY-9743-Assignments-6/}{pawarraj8888.github.io/FRE-GY-9743-Assignments-6}.
+\vspace{2pt}\hrule
+
+\section*{Part I: an EUR/USD forward collateralised in GBP}
+\textbf{Setting.} At $T$ I receive $N$ EUR and pay $NK$ USD, so $K$ is in USD per EUR, like the spot rate $X_t$. The trade
+sits under a CSA with cash collateral in GBP, remunerated at SONIA, and I assume perfect collateralisation as in the notes.
+I write $c_{\usd}$, $c_{\eur}$, $c_{\gbp}$ for the collateral (OIS) rates SOFR, EuroSTR and SONIA, $r_{\usd}, r_{\eur},
+r_{\gbp}$ for the rates at which a desk actually funds and invests cash in each currency (the secured rate $r_R$ of the notes),
+and $y_i := r_i - c_i$ for the gap between the two in currency $i$. The $y_i$ are small and not directly observable; they will only
+ever appear as differences, which is what the cross-currency basis market quotes.
+
+\textbf{Discounting a payoff whose collateral is in another currency.} I redo the replication argument of the collateral notes
+(Section 2.2) for a USD payoff $V$ collateralised in GBP. The counterparty posts collateral worth $V$, i.e. $C_{\gbp}=V/X^{\mathrm{GBPUSD}}_t$
+pounds. I pay SONIA on it, $c_{\gbp}C_{\gbp}$, and I can lend the pounds, or repay GBP borrowing with them, at $r_{\gbp}$,
+so the collateral account earns me a net carry of $(r_{\gbp}-c_{\gbp})C_{\gbp}$ per unit time, which is $y_{\gbp}V$ in USD once
+I convert at spot. The derivative itself needs no unsecured funding because it is fully collateralised, and the hedge is financed at the
+secured rate exactly as in Eq.~(12) of the notes with $C\equiv V$. The self-financing condition therefore becomes
+$\partial_tV+\mathcal{L}V = r_{\usd}V - y_{\gbp}V$, and Feynman--Kac gives
+\[
+V_t=\E^{Q_{\usd}}_t\!\Bigl[e^{-\int_t^T (r_{\usd}-y_{\gbp})\,du}\,V_T\Bigr]
+   =\E^{Q_{\usd}}_t\!\Bigl[e^{-\int_t^T (c_{\usd}+y_{\usd}-y_{\gbp})\,du}\,V_T\Bigr].
+\]
+Two checks: with GBP collateral on a GBP payoff the rate is $r_{\gbp}-y_{\gbp}=c_{\gbp}$, SONIA discounting, which is Eq.~(16)
+of the notes; with USD collateral on a USD payoff it is SOFR. So the general rule is: a payoff in currency $i$ collateralised in
+currency $k$ is discounted at $c_i+y_i-y_k$, and I write the corresponding collateralised zero-coupon bond as
+\[
+P^{(k)}_i(t,T):=\E^{Q_i}_t\!\Bigl[e^{-\int_t^T (c_i+y_i-y_k)\,du}\Bigr],\qquad P^{(i)}_i(t,T)=\E^{Q_i}_t\!\Bigl[e^{-\int_t^T c_i\,du}\Bigr]
+\text{ the OIS discount factor.}
+\]
+
+\textbf{Q1: valuation formula.} The USD leg is a fixed payment of $NK$ at $T$ under GBP collateral, worth $-NK\,P^{(\gbp)}_{\usd}(t,T)$.
+The EUR leg is $N$ euros at $T$ under the same CSA; the argument above run in EUR values it at $N\,P^{(\gbp)}_{\eur}(t,T)$ euros,
+and a euro value today is $X_t$ dollars (a spot trade, no funding involved). Hence
+\[
+V_t = N\Bigl[X_t\,P^{(\gbp)}_{\eur}(t,T)-K\,P^{(\gbp)}_{\usd}(t,T)\Bigr]
+    = N\,P^{(\gbp)}_{\usd}(t,T)\bigl[F^{(\gbp)}(t,T)-K\bigr],\qquad
+F^{(\gbp)}(t,T):=X_t\,\frac{P^{(\gbp)}_{\eur}(t,T)}{P^{(\gbp)}_{\usd}(t,T)}.
+\]
+In the language of Section 2.3 of the notes, $P^{(\gbp)}_{\usd}(t,T)$ is the numeraire of the $T$-forward measure for this CSA,
+$X_T$ is a martingale under it with $F^{(\gbp)}(t,T)=\E^{T,\gbp}_t[X_T]$, and $V_t=N\,P^{(\gbp)}_{\usd}(t,T)\,\E^{T,\gbp}_t[X_T-K]$.
+
+\textbf{Q2: fair forward strike.} $V_t=0$ gives
+\[
+K^{*}=F^{(\gbp)}(t,T)=X_t\,\frac{P^{(\gbp)}_{\eur}(t,T)}{P^{(\gbp)}_{\usd}(t,T)},
+\]
+covered interest parity with both legs discounted on their GBP-collateralised curves. If the spreads $y$ are deterministic the
+expectation factorises, $P^{(k)}_i=P^{(i)}_i\,e^{-\int_t^T (y_i-y_k)du}$, and the collateral currency drops out of the ratio:
+$K^{*}=X_t\,(P^{(\eur)}_{\eur}/P^{(\usd)}_{\usd})\,e^{-\int_t^T (y_{\eur}-y_{\usd})du}$, the same forward whatever the CSA.
+The collateral currency changes how the mark-to-market is discounted, not where the forward is.
+
+\textbf{Q3: are the five discount factors enough?} First what they are. $\df{\mathrm{SONIA}}=P^{(\gbp)}_{\gbp}$,
+$\df{\mathrm{EuroSTR}}=P^{(\eur)}_{\eur}$ and $\df{\mathrm{SOFR}}=P^{(\usd)}_{\usd}$ are the OIS curves, cashflows collateralised
+in their own currency. $\df{[\mathrm{GBP},\mathrm{USD}]}=P^{(\usd)}_{\gbp}$ and $\df{[\mathrm{EUR},\mathrm{USD}]}=P^{(\usd)}_{\eur}$
+are GBP and EUR cashflows collateralised in USD, which is what GBP/USD and EUR/USD cross-currency basis swaps under a USD CSA
+bootstrap.\footnote{If the bracket is meant the other way round, USD cashflows collateralised in GBP and in EUR, the same algebra
+goes through with the roles swapped: $P^{(\gbp)}_{\usd}=\df{[\mathrm{GBP},\mathrm{USD}]}$ directly and
+$P^{(\gbp)}_{\eur}=\df{\mathrm{EuroSTR}}\,\df{[\mathrm{GBP},\mathrm{USD}]}/\df{[\mathrm{EUR},\mathrm{USD}]}$. The conclusion does not change.}
+What I need are $P^{(\gbp)}_{\usd}$ and $P^{(\gbp)}_{\eur}$, and neither is on the list, so taken literally the answer is no.
+But every $P^{(k)}_i$ differs from the OIS curve $P^{(i)}_i$ only through the collateral switch $e^{-\int (y_i-y_k)}$, and the $y$'s
+enter only as differences. Under the assumption that any curve construction already makes when it turns these expectations into
+discount factors, that the spreads are deterministic (or at least independent of the rates and of FX), the switch factors chain:
+with $Y_{i,k}(T):=e^{-\int_t^T (y_i-y_k)du}$ I have $Y_{i,k}=Y_{i,\usd}\,Y_{\usd,k}$ and $Y_{k,i}=1/Y_{i,k}$, and the two USD bases give
+$Y_{\gbp,\usd}=\df{[\mathrm{GBP},\mathrm{USD}]}/\df{\mathrm{SONIA}}$ and $Y_{\eur,\usd}=\df{[\mathrm{EUR},\mathrm{USD}]}/\df{\mathrm{EuroSTR}}$. Then
+\[
+P^{(\gbp)}_{\usd}=\df{\mathrm{SOFR}}\,Y_{\usd,\gbp}=\df{\mathrm{SOFR}}\,\frac{\df{\mathrm{SONIA}}}{\df{[\mathrm{GBP},\mathrm{USD}]}},\qquad
+P^{(\gbp)}_{\eur}=\df{\mathrm{EuroSTR}}\,Y_{\eur,\usd}\,Y_{\usd,\gbp}=\df{[\mathrm{EUR},\mathrm{USD}]}\,\frac{\df{\mathrm{SONIA}}}{\df{[\mathrm{GBP},\mathrm{USD}]}},
+\]
+and the forward and its value become
+\[
+K^{*}=X_t\,\frac{\df{[\mathrm{EUR},\mathrm{USD}]}(T)}{\df{\mathrm{SOFR}}(T)},\qquad
+V_t=N\,\frac{\df{\mathrm{SONIA}}(T)}{\df{[\mathrm{GBP},\mathrm{USD}]}(T)}\Bigl[X_t\,\df{[\mathrm{EUR},\mathrm{USD}]}(T)-K\,\df{\mathrm{SOFR}}(T)\Bigr].
+\]
+So yes, they are sufficient, and the way GBP enters is instructive. The fair strike needs only the USD-collateralised EUR curve and SOFR:
+it is the ordinary USD-CSA forward, as Q2 said it had to be. The GBP collateral appears only in the factor
+$\df{\mathrm{SONIA}}/\df{[\mathrm{GBP},\mathrm{USD}]}=P^{(\gbp)}_{\usd}/P^{(\usd)}_{\usd}$, the ratio of the GBP-collateralised to the
+USD-collateralised USD discount factor, which rescales the mark-to-market $K^{*}-K$. Equivalently, the EUR/GBP collateral basis is
+triangulated from the two USD bases. Three caveats I would attach to that answer. The chaining uses the deterministic-spread
+assumption; if the bases are stochastic and correlated with FX, each $P^{(k)}_i$ carries a convexity term that the five curves do not
+determine. The triangulated EUR/GBP basis is a no-arbitrage value; where EUR/GBP basis swaps trade at a different level, a
+GBP-collateralised EUR curve bootstrapped from them should replace the triangulation, and the formula above becomes the check against it.
+And the $y$'s are desk-specific if the collateral can actually be invested at something other than the market secured rate, which is
+the cheapest-to-deliver collateral question rather than a curve question.
+
+\section*{Part II: swap products in the valuation library}
+I completed the six \code{TODO} blocks following the supplied FRA example. In \code{linear\_products.py}, \code{ProductRFRSwap} builds a
+fixed leg and a compounded-overnight leg with \code{InterestRateStream}; both legs run from the adjusted effective date to the termination
+date, their accrual schedules follow the overnight index's fixing calendar with the swap's payment business-day convention, and both pay
+with the swap's payment offset and conventions. The floating leg carries the swap's compounding method and spread, which
+\code{ProductOvernightIndexCashflow} adds outside the daily compounding. \code{ProductOvernightIndexBasisSwap} builds two such overnight
+legs through one small helper, each on its own index, calendar and accrual period, with the spread on leg 1 only. The supplied
+index-only and spread-only views of leg 1 reuse the leg-1 schedule, so leg 1 values to exactly their sum. In \code{product\_factory.py}
+the two builders read everything but the dates and the quote from the convention; the shared date rule treats \code{1Y} as spot-starting,
+\code{3Mx1Y} as a 3M forward start running for 1Y, and accepts explicit dates in either slot; the quote is the fixed rate for the
+swap and the leg-1 spread for the basis swap. In \code{valuation\_engine.py} the two \code{calculate\_value} methods are signed sums of
+the supplied leg engines, for value and for cash separately.
+
+\textbf{Numbers.} Value date 2026-01-02, notional $N=1,000,000$ USD, trades from 2026-04-02 to 2027-04-02, funding on SOFR plus the
+IFR spread. A useful identity for checking the floating legs by hand: when every observation period of the index calendar lies inside
+the coupon, the daily factors $D(s_j)/D(e_j)$ telescope, so a compounded coupon pays $N\bigl(D(T_s)/D(T_e)-1\bigr)$ on the projection curve
+plus $N\alpha s$ for the spread, discounted with the funding curve at the payment date. For the annual SOFR coupon this gives a
+compounded rate of 4.2730\%, the figure in the notebook's cashflow table.
+\begin{center}\small
+\begin{tabular}{@{}lrrr@{}}\toprule
+Product & Leg values (USD) & PV (USD) & Fair level \\\midrule
+FRA $3\times6$, receive 4\% & & 87.09 & \\
+RFR swap, receive 4\% vs SOFR, 1Y/1Y & fixed 38,534.54, floating 41,164.22 & -2,629.68 & par rate 4.2730\% \\
+Basis swap, receive SOFR + 10 bp vs Fed Funds, 3M/3M & leg 1 42,163.00 (index 41,182.75 + spread 980.25), leg 2 33,716.53 & 8,446.47 & fair spread -76.17 bp \\
+\bottomrule\end{tabular}
+\end{center}
+\begin{center}\small
+\begin{tabular}{@{}lllrrrrrr@{}}\toprule
+Start & End & Pays & $\alpha$ & SOFR cmpd \% & FF cmpd \% & $D_{\mathrm{fund}}$ & Leg 1 PV & Leg 2 PV \\\midrule
+2026-04-02 & 2026-07-02 & 2026-07-07 & 0.252778 & 3.9649 & 2.7713 & 0.982228 & 10,092.66 & 6,880.75 \\
+2026-07-02 & 2026-10-02 & 2026-10-06 & 0.255556 & 3.9652 & 3.6664 & 0.972239 & 10,100.34 & 9,109.54 \\
+2026-10-02 & 2027-01-04 & 2027-01-06 & 0.261111 & 3.9656 & 3.6668 & 0.962191 & 10,214.35 & 9,212.31 \\
+2027-01-04 & 2027-04-02 & 2027-04-06 & 0.244444 & 4.9614 & 3.6656 & 0.950167 & 11,755.64 & 8,513.93 \\
+\bottomrule\end{tabular}
+\end{center}
+The swap is worth less than zero to the fixed receiver because 4\% is below the 4.27\% the SOFR curve compounds to, and the basis swap
+is worth 8,446.47 because Fed Funds projects some 1 to 1.3 percentage points below SOFR on these synthetic curves, far more than the
+10 bp spread paid for it. Every number in the notebook agrees with the hand calculation described above, which is also what the
+41 tests in \code{tests/} check (leg construction, calendars and periods, the factory's date rules and convention mapping, the
+engines against the hand numbers, par rate and fair spread, arithmetic compounding, same-day cash from fixings, past payments, reports and
+registry dispatch, and the supplied FRA).
+\end{document}

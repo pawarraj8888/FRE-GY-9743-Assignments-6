@@ -41,8 +41,18 @@ class ProductFactory:
         **kwargs: Any,
     ) -> ProductRFRSwap:
 
-        #TODO
-        pass
+        # The convention fixes the index, accrual basis and period, payment offset and payment
+        # conventions; axis1 fixes the dates and the quote is the fixed rate. The swap has one
+        # accrual period for both legs, so the floating leg reuses the convention's period.
+        effective_date, term_or_termination_date = cls._swap_dates(value_date, axis1, data_convention)
+        return ProductRFRSwap(
+            effective_date, term_or_termination_date, data_convention.payment_offset,
+            data_convention.index_str, values,
+            PayOrReceive.from_string(kwargs.get("pay_or_rec", "receive")),
+            kwargs.get("notional", 1e4), data_convention.acc_period, data_convention.acc_basis,
+            data_convention.acc_period, data_convention.business_day_convention,
+            data_convention.holiday_convention, 0.0, data_convention.compounding_method,
+        )
 
     @classmethod
     def create_overnight_index_basis_swap(
@@ -54,8 +64,17 @@ class ProductFactory:
         **kwargs: Any,
     ) -> ProductOvernightIndexBasisSwap:
 
-        #TODO
-        pass
+        # Leg 1 is the convention's basis index plus the quoted spread, leg 2 its reference
+        # index flat; each leg keeps its own accrual period and both share the payment terms.
+        effective_date, term_or_termination_date = cls._swap_dates(value_date, axis1, data_convention)
+        return ProductOvernightIndexBasisSwap(
+            effective_date, term_or_termination_date, data_convention.payment_offset,
+            data_convention.index_1_str, data_convention.index_2_str, values,
+            PayOrReceive.from_string(kwargs.get("pay_or_rec", "receive")),
+            kwargs.get("notional", 1e4), data_convention.acc_period_1, data_convention.acc_basis,
+            data_convention.acc_period_2, data_convention.business_day_convention,
+            data_convention.holiday_convention, data_convention.compounding_method,
+        )
 
     @classmethod
     def create_fra(cls, value_date, axis1, data_convention, values, **kwargs):
@@ -73,6 +92,23 @@ class ProductFactory:
             values, PayOrReceive.from_string(kwargs.get("pay_or_rec", "receive")),
             kwargs.get("notional", 1e4), data_convention.acc_basis, bdc, holidays,
         )
+
+    @classmethod
+    def _swap_dates(cls, value_date, axis1, data_convention):
+        """Swap date rule: '1Y' starts spot and runs for the tenor; '3Mx1Y' starts in 3M and runs
+        for 1Y; either token may instead be an explicit ISO date. The product adjusts the start
+        and resolves a tenor end with the index calendar, so only the start offset is applied here."""
+        start, end = cls._tokenize_axis1(axis1)
+        if end is None:
+            return value_date, start
+        if start.is_term():
+            effective_date = add_period(
+                value_date, start.get_term(), data_convention.business_day_convention,
+                data_convention.holiday_convention,
+            )
+        else:
+            effective_date = start.get_date()
+        return effective_date, end
 
     @staticmethod
     def _tokenize_axis1(axis1):

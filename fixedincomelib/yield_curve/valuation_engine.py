@@ -160,8 +160,15 @@ class ValuationEngineProductRfrSwap(ValuationEngineProduct):
         self.floating_leg_engine_ = ValuationEngineInterestRateStream(model, valuation_parameters_collection, product.floating_leg, request)
 
     def calculate_value(self):
-        #TODO
-        pass
+        # Receive-fixed is long the fixed leg and short the floating leg; the signs carry that.
+        # Each leg engine already discounts its coupons on the funding curve and separates the
+        # value-date cash, so the swap is the signed sum of the two legs.
+        self.fixed_leg_engine_.calculate_value()
+        self.floating_leg_engine_.calculate_value()
+        self.value_ = (self.fixed_leg_sign_ * self.fixed_leg_engine_.value +
+                       self.floating_leg_sign_ * self.floating_leg_engine_.value)
+        self.cash_ = (self.fixed_leg_sign_ * self.fixed_leg_engine_.cash +
+                      self.floating_leg_sign_ * self.floating_leg_engine_.cash)
 
     def create_cash_flows_report(self):
         return _combine_cashflow_reports([
@@ -215,8 +222,13 @@ class ValuationEngineProductOvernightIndexBasisSwap(ValuationEngineProduct):
                 ("Leg 2 index", self.floating_leg_2_sign_, self.floating_leg_2_engine_)]
 
     def calculate_value(self):
-        #TODO
-        pass
+        # Leg 1 is valued as its index-only stream plus its spread-only stream, both with the
+        # leg-1 sign; leg 2 carries the opposite sign. Value and cash are the signed sums.
+        self.value_ = self.cash_ = 0.0
+        for _, sign, engine in self._legs():
+            engine.calculate_value()
+            self.value_ += sign * engine.value
+            self.cash_ += sign * engine.cash
 
     def create_cash_flows_report(self):
         return _combine_cashflow_reports(self._legs())

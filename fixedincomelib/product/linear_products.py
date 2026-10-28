@@ -529,7 +529,39 @@ class ProductRFRSwap(Product):
         )
         self.compounding_method_ = compounding_method
 
-        #TODO
+        # Both legs run from the adjusted effective date to the termination date. Their
+        # accrual schedules follow the overnight index's fixing calendar with the swap's
+        # payment business-day convention, and both pay with the swap's payment offset and
+        # payment conventions. The fixed leg pays N*K*alpha per period; the floating leg
+        # compounds the overnight fixings over each period and adds the spread outside the
+        # compounding, which is how ProductOvernightIndexCashflow stores it.
+        schedule_holidays = HolidayConvention(self.on_index_.fixingCalendar().name())
+        common = dict(
+            effective_date=self.effective_date_,
+            termination_date=self.termination_date_,
+            notional=self.notional_,
+            currency=self.currency_,
+            accrual_basis=self.accrual_basis_,
+            business_day_convention=self.pay_business_day_convention_,
+            holiday_convention=schedule_holidays,
+            payment_offset=self.pay_offset_,
+            payment_business_day_convention=self.pay_business_day_convention_,
+            payment_holiday_convention=self.pay_holiday_convention_,
+        )
+        self.fixed_leg_ = InterestRateStream(
+            accrual_period=self.accrual_period_,
+            fixed_rate=self.fixed_rate_,
+            **common,
+        )
+        self.floating_leg_ = InterestRateStream(
+            accrual_period=self.floating_leg_accrual_period_,
+            float_index=self.on_index_str_,
+            is_on_index=True,
+            ois_compounding=self.compounding_method_,
+            ois_spread=self.spread_,
+            fixing_in_arrear=True,
+            **common,
+        )
 
         last_dt_fixed = self.fixed_leg_.last_date
         last_dt_floating = self.floating_leg_.last_date
@@ -727,12 +759,50 @@ class ProductOvernightIndexBasisSwap(Product):
 
         self.floating_leg_1_basis_ = None
         self.floating_leg_1_wo_basis_ = None
-        #TODO
+
+        # Leg 1 compounds index 1 and adds the basis spread outside the compounding; leg 2
+        # compounds index 2 flat. Each leg's accrual schedule follows its own index's fixing
+        # calendar and its own accrual period; the payment offset and payment conventions are
+        # shared. The index-only and spread-only views of leg 1 exposed below reuse the leg-1
+        # schedule, so leg 1 values to their sum.
+        self.floating_leg_1_ = self._overnight_leg(
+            self.on_index_str_1_, self.on_index_1_, self.accrual_period_1_, self.spread_,
+        )
+        self.floating_leg_2_ = self._overnight_leg(
+            self.on_index_str_2_, self.on_index_2_, self.accrual_period_2_, 0.0,
+        )
 
         last_dt_floating_1 = self.floating_leg_1_.last_date
         last_dt_floating_2 = self.floating_leg_2_.last_date
         self.last_date_ = (
             last_dt_floating_2 if last_dt_floating_2 >= last_dt_floating_1 else last_dt_floating_1
+        )
+
+    def _overnight_leg(
+        self,
+        on_index_str: str,
+        on_index: ql.QuantLib.OvernightIndex,
+        accrual_period: Period,
+        spread: float,
+    ) -> InterestRateStream:
+        """Compounded overnight leg on this swap's dates, notional and payment conventions."""
+        return InterestRateStream(
+            effective_date=self.effective_date_,
+            termination_date=self.termination_date_,
+            accrual_period=accrual_period,
+            notional=self.notional_,
+            currency=self.currency_,
+            accrual_basis=self.accrual_basis_,
+            business_day_convention=self.pay_business_day_convention_,
+            holiday_convention=HolidayConvention(on_index.fixingCalendar().name()),
+            float_index=on_index_str,
+            is_on_index=True,
+            ois_compounding=self.compounding_method_,
+            ois_spread=spread,
+            fixing_in_arrear=True,
+            payment_offset=self.pay_offset_,
+            payment_business_day_convention=self.pay_business_day_convention_,
+            payment_holiday_convention=self.pay_holiday_convention_,
         )
 
     def floating_leg_1_cash_flow(self, i: int) -> Product:
